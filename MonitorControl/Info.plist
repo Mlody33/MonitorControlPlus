@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>MonitorControlPlus</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>
@@ -19,7 +21,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>7152</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -32,10 +34,6 @@
 	<string>NSApplication</string>
 	<key>SUEnableJavaScript</key>
 	<true/>
-	<key>SUFeedURL</key>
-	<string>https://monitorcontrol.app/appcast2.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>ITSTMp8AypsLawojJ+UR3tm2mN18AFoNMvXf1G3t62s=</string>
 	<key>UIDesignRequiresCompatibility</key>
 	<true/>
 </dict>

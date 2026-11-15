@@ -8,6 +8,11 @@ class OtherDisplay: Display {
   var ddc: IntelDDC?
   var arm64ddc: Bool = false
   var arm64avService: IOAVService?
+  var cachedInputSourceCodes: [UInt16]?
+  var inputSwitchPending = false
+  var powerRequestPending = false
+  var dpmsOffRequested = false
+  var reportedPowerMode: UInt16?
   var isDiscouraged: Bool = false
   let writeDDCQueue = DispatchQueue(label: "Local write DDC queue")
   var writeDDCNextValue: [Command: UInt16] = [:]

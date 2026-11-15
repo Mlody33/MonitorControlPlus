@@ -4,6 +4,9 @@ import AppKit
 import os.log
 
 class MenuHandler: NSMenu, NSMenuDelegate {
+  private var inputSourceSliders: [InputSourceSlider] = []
+  private var inputSourceTimer: Timer?
+
   var combinedSliderHandler: [Command: SliderHandler] = [:]
 
   var lastMenuRelevantDisplayId: CGDirectDisplayID = 0
@@ -17,11 +20,24 @@ class MenuHandler: NSMenu, NSMenuDelegate {
       self.removeItem(item)
     }
     self.combinedSliderHandler.removeAll()
+    self.inputSourceSliders.removeAll()
   }
 
   func menuWillOpen(_: NSMenu) {
     self.updateMenuRelevantDisplay()
     app.keyboardShortcuts.disengage()
+    for slider in self.inputSourceSliders { slider.refresh(reloadCapabilities: true) }
+    self.inputSourceTimer?.invalidate()
+    let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
+      self?.inputSourceSliders.forEach { $0.refresh() }
+    }
+    self.inputSourceTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  func menuDidClose(_: NSMenu) {
+    self.inputSourceTimer?.invalidate()
+    self.inputSourceTimer = nil
   }
 
   func closeMenu() {
@@ -194,12 +210,25 @@ class MenuHandler: NSMenu, NSMenuDelegate {
       let title = NSLocalizedString("Brightness", comment: "Shown in menu")
       addedSliderHandlers.append(self.setupMenuSliderHandler(command: .brightness, display: display, title: title))
     }
+    let hasInputSelection = self.addInputSelectionItem(display: display, monitorSubMenu: monitorSubMenu)
     if prefs.integer(forKey: PrefKey.multiSliders.rawValue) != MultiSliders.combine.rawValue {
       self.addDisplayMenuBlock(addedSliderHandlers: addedSliderHandlers, blockName: display.readPrefAsString(key: .friendlyName) != "" ? display.readPrefAsString(key: .friendlyName) : display.name, monitorSubMenu: monitorSubMenu, numOfDisplays: numOfDisplays, asSubMenu: asSubMenu)
     }
-    if addedSliderHandlers.count > 0, prefs.integer(forKey: PrefKey.menuIcon.rawValue) == MenuIcon.sliderOnly.rawValue {
+    if addedSliderHandlers.count > 0 || hasInputSelection, prefs.integer(forKey: PrefKey.menuIcon.rawValue) == MenuIcon.sliderOnly.rawValue {
       app.updateStatusItemVisibility(true)
     }
+  }
+
+  private func addInputSelectionItem(display: Display, monitorSubMenu: NSMenu) -> Bool {
+    guard let otherDisplay = display as? OtherDisplay, !otherDisplay.isSw(), !display.readPrefAsBool(key: .unavailableDDC, for: .inputSelect) else { return false }
+    let width: CGFloat = prefs.bool(forKey: PrefKey.enableSliderPercent.rawValue) ? 248 : 210
+    let slider = InputSourceSlider(display: otherDisplay, width: width)
+    self.inputSourceSliders.append(slider)
+    let item = NSMenuItem()
+    item.view = slider
+    monitorSubMenu.insertItem(item, at: 0)
+    slider.refresh()
+    return true
   }
 
   private func appendMenuHeader(friendlyName: String, monitorSubMenu: NSMenu, asSubMenu: Bool, numOfDisplays: Int) {
@@ -246,6 +275,9 @@ class MenuHandler: NSMenu, NSMenuDelegate {
       settingsIcon.frame = NSRect(x: menuItemView.frame.maxX - iconSize * 3 - 20 - 17 + compensateForBlock, y: menuItemView.frame.origin.y + 5, width: iconSize, height: iconSize)
       settingsIcon.imageScaling = .scaleProportionallyUpOrDown
       settingsIcon.action = #selector(app.prefsClicked)
+      if usesLocalUpdates {
+        settingsIcon.frame.origin.x += iconSize + 6
+      }
 
       let updateIcon = NSButton()
       updateIcon.bezelStyle = .regularSquare
@@ -274,7 +306,9 @@ class MenuHandler: NSMenu, NSMenuDelegate {
       quitIcon.action = #selector(app.quitClicked)
 
       menuItemView.addSubview(settingsIcon)
-      menuItemView.addSubview(updateIcon)
+      if !usesLocalUpdates {
+        menuItemView.addSubview(updateIcon)
+      }
       menuItemView.addSubview(quitIcon)
       let item = NSMenuItem()
       item.view = menuItemView
@@ -286,7 +320,9 @@ class MenuHandler: NSMenu, NSMenuDelegate {
       self.insertItem(withTitle: NSLocalizedString("Settings…", comment: "Shown in menu"), action: #selector(app.prefsClicked), keyEquivalent: ",", at: self.items.count)
       let updateItem = NSMenuItem(title: NSLocalizedString("Check for updates…", comment: "Shown in menu"), action: #selector(app.updaterController.checkForUpdates(_:)), keyEquivalent: "")
       updateItem.target = app.updaterController
-      self.insertItem(updateItem, at: self.items.count)
+      if !usesLocalUpdates {
+        self.insertItem(updateItem, at: self.items.count)
+      }
       self.insertItem(withTitle: NSLocalizedString("Quit", comment: "Shown in menu"), action: #selector(app.quitClicked), keyEquivalent: "q", at: self.items.count)
     }
   }

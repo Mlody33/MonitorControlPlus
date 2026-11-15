@@ -6,3 +6,6 @@ Carthage
 
 ### Xcode ###
 xcuserdata/
+### Local update builds, signing selection and settings backups ###
+.local-update/
+__pycache__/

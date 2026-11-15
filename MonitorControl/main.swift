@@ -10,14 +10,11 @@ let DEBUG_MACOS10 = false
 let DEBUG_GAMMA_ENFORCER = false
 let DDC_MAX_DETECT_LIMIT: Int = 100
 
-/// Version
-let MIN_PREVIOUS_BUILD_NUMBER = 6262
-
 // App
 var app: AppDelegate!
 var menu: MenuHandler!
 
-let prefs = UserDefaults.standard
+let prefs = preparePreferences(.standard, bundleIdentifier: Bundle.main.bundleIdentifier)
 
 // Views
 private let storyboard = NSStoryboard(name: "Main", bundle: Bundle.main)

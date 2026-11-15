@@ -36,6 +36,89 @@ class SliderHandler {
     var displayHighlightItems: [CGDirectDisplayID: Float] = [:]
 
     var isTracking: Bool = false
+    var showsPercentage: Bool = false
+    var controlIcon: NSImage?
+    var animatesWhileTracking: Bool { false }
+    private var handleTarget: Double?
+    private var handlePosition: Double = 0
+    private var handleAnimation: Timer?
+    private var iconOutside: CGFloat = 0
+    private var iconTargetOutside: Bool?
+    private var iconAnimation: Timer?
+
+    private func updateIconState(compactGap: CGFloat) {
+      guard self.controlIcon != nil else { return }
+      // Icon occupies x=3...18; allow ten points of clearance to release it.
+      // Reabsorb four points earlier to avoid retriggering near the boundary.
+      let outside = compactGap >= (self.iconTargetOutside == true ? 24 : 28)
+      guard self.iconTargetOutside != outside else { return }
+      let initial = self.iconTargetOutside == nil
+      self.iconTargetOutside = outside
+      self.iconAnimation?.invalidate()
+      self.iconAnimation = nil
+      let destination: CGFloat = outside ? 1 : 0
+      guard !initial, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+        self.iconOutside = destination
+        return
+      }
+      let origin = self.iconOutside
+      let started = ProcessInfo.processInfo.systemUptime
+      let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+        guard let self = self else { timer.invalidate(); return }
+        let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 0.22)
+        let eased = CGFloat(progress * progress * (3 - 2 * progress))
+        self.iconOutside = origin + (destination - origin) * eased
+        self.controlView?.needsDisplay = true
+        if progress >= 1 {
+          timer.invalidate()
+          self.iconAnimation = nil
+        }
+      }
+      self.iconAnimation = timer
+      RunLoop.main.add(timer, forMode: .common)
+      RunLoop.main.add(timer, forMode: .eventTracking)
+    }
+
+    // Only the presentation moves: DDC writes and accessibility always use the
+    // actual value, never the intermediate animation frames.
+    var animatedValue: Double {
+      let target = min(1, max(0, self.doubleValue))
+      let immediate = (self.isTracking && !self.animatesWhileTracking) || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      if self.handleTarget == nil || immediate {
+        self.handleAnimation?.invalidate()
+        self.handleAnimation = nil
+        self.handleTarget = target
+        self.handlePosition = target
+      } else if self.handleTarget != target {
+        self.handleTarget = target
+        self.handleAnimation?.invalidate()
+        let origin = self.handlePosition
+        let started = ProcessInfo.processInfo.systemUptime
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+          guard let self = self else {
+            timer.invalidate()
+            return
+          }
+          let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 0.22)
+          let eased = progress * progress * (3 - 2 * progress)
+          self.handlePosition = origin + (target - origin) * eased
+          self.controlView?.needsDisplay = true
+          if progress >= 1 {
+            timer.invalidate()
+            self.handleAnimation = nil
+          }
+        }
+        self.handleAnimation = timer
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+      }
+      return self.handlePosition
+    }
+
+    deinit {
+      self.iconAnimation?.invalidate()
+      self.handleAnimation?.invalidate()
+    }
 
     required init(coder aDecoder: NSCoder) {
       super.init(coder: aDecoder)
@@ -46,9 +129,56 @@ class SliderHandler {
     }
 
     override func barRect(flipped: Bool) -> NSRect {
+      if !DEBUG_MACOS10, #available(macOS 11.0, *), let controlView = self.controlView {
+        // Keep the custom pill independent of AppKit's native knob size (which
+        // became smaller in newer macOS releases).
+        return NSRect(x: 2, y: (controlView.bounds.height - 22) / 2, width: max(0, controlView.bounds.width - 4), height: 22)
+      }
       let bar = super.barRect(flipped: flipped)
       let knob = super.knobRect(flipped: flipped)
       return NSRect(x: bar.origin.x, y: knob.origin.y, width: bar.width, height: knob.height).insetBy(dx: 0, dy: self.inset).offsetBy(dx: self.offsetX, dy: self.offsetY)
+    }
+
+    override func knobRect(flipped: Bool) -> NSRect {
+      guard self.showsPercentage, !DEBUG_MACOS10, #available(macOS 11.0, *) else {
+        return super.knobRect(flipped: flipped)
+      }
+      return self.handleRect(in: self.barRect(flipped: flipped), value: self.doubleValue, updateIcon: false)
+    }
+
+    func handleRect(in track: NSRect, value: Double, updateIcon: Bool = true) -> NSRect {
+      let compactWidth = self.showsPercentage ? CGFloat(48) : track.height
+      let extraSpace: CGFloat = self.showsPercentage && self.controlIcon != nil ? 12 : 0
+      let travel = max(0, track.width - compactWidth - extraSpace)
+      let compactX = track.minX + extraSpace + travel * CGFloat(min(1, max(0, value)))
+      if updateIcon {
+        self.updateIconState(compactGap: compactX - track.minX)
+      }
+      let outside = updateIcon ? self.iconOutside : (compactX - track.minX >= 28 ? CGFloat(1) : 0)
+      let extraWidth = extraSpace * (1 - outside)
+      let inset = self.numOfTickmarks > 0 && !self.showsPercentage ? self.tickMarkKnobExtraInset : 0
+      // The compact capsule's right edge is the anchor: expansion only extends
+      // its left edge, leaving the percentage at a fixed right-hand inset.
+      return NSRect(x: compactX - extraWidth, y: track.minY, width: compactWidth + extraWidth, height: track.height).insetBy(dx: inset, dy: 0)
+    }
+
+    func iconVisibility(in track: NSRect, handle: NSRect) -> CGFloat {
+      self.iconOutside
+    }
+
+    private func drawControlIcon(in track: NSRect, handle: NSRect, flipped: Bool) {
+      guard let icon = self.controlIcon else { return }
+      let outside = self.iconVisibility(in: track, handle: handle)
+      let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      // Keep the icon visible while it moves between its home at the leading
+      // edge and its seat inside the handle, beside the percentage text.
+      let scale = reduceMotion ? 1 : 1 + 0.12 * sin(.pi * outside)
+      let size = 15 * scale
+      let insideX = self.showsPercentage ? handle.minX + 10 : handle.midX
+      let homeX = track.minX + 10.5
+      let centerX = insideX + (homeX - insideX) * outside
+      let rect = NSRect(x: centerX - size / 2, y: track.midY - size / 2, width: size, height: size)
+      icon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
     }
 
     override func startTracking(at startPoint: NSPoint, in controlView: NSView) -> Bool {
@@ -74,29 +204,29 @@ class SliderHandler {
         super.drawBar(inside: aRect, flipped: flipped)
         return
       }
-      var maxValue: Float = self.floatValue
-      var minValue: Float = self.floatValue
+      let presentedValue = self.animatedValue
 
-      if self.isHighlightDisplayItems {
-        maxValue = max(self.displayHighlightItems.values.max() ?? 0, maxValue)
-        minValue = min(self.displayHighlightItems.values.min() ?? 1, minValue)
-      }
-
-      let barRadius = aRect.height * 0.5 * (self.numOfTickmarks == 0 ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
+      // The capsule grows only while absorbing the icon; digit count never
+      // changes its compact width. All geometry follows the animated value.
+      let handleWidth = self.showsPercentage ? CGFloat(48) : aRect.height
+      let leadingInset: CGFloat = 0
+      let travel = max(0, aRect.width - leadingInset - handleWidth)
+      let usesTickShape = self.numOfTickmarks > 0 && !self.showsPercentage
+      let barRadius = aRect.height * 0.5 * (!usesTickShape ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
       let bar = NSBezierPath(roundedRect: aRect, xRadius: barRadius, yRadius: barRadius)
       self.barFillColor.setFill()
       bar.fill()
 
-      let barFilledWidth = (aRect.width - aRect.height) * CGFloat(maxValue) + aRect.height
+      // Fill and handle share the exact same animated geometry, including
+      // when monitors attached to a combined slider have different values.
+      let knobRect = self.handleRect(in: aRect, value: presentedValue)
+      let barFilledWidth = knobRect.maxX - aRect.minX
       let barFilledRect = NSRect(x: aRect.origin.x, y: aRect.origin.y, width: barFilledWidth, height: aRect.height)
       let barFilled = NSBezierPath(roundedRect: barFilledRect, xRadius: barRadius, yRadius: barRadius)
       self.barFilledFillColor.setFill()
       barFilled.fill()
 
-      let knobMinX = aRect.origin.x + (aRect.width - aRect.height) * CGFloat(minValue)
-      let knobMaxX = aRect.origin.x + (aRect.width - aRect.height) * CGFloat(maxValue)
-      let knobRect = NSRect(x: knobMinX + (self.numOfTickmarks == 0 ? CGFloat(0) : self.tickMarkKnobExtraInset), y: aRect.origin.y, width: aRect.height + CGFloat(knobMaxX - knobMinX), height: aRect.height).insetBy(dx: self.numOfTickmarks == 0 ? CGFloat(0) : self.tickMarkKnobExtraInset, dy: 0)
-      let knobRadius = knobRect.height * 0.5 * (self.numOfTickmarks == 0 ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
+      let knobRadius = knobRect.height * 0.5 * (!usesTickShape ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
 
       if self.numOfTickmarks > 0 {
         for i in 1 ... self.numOfTickmarks - 2 {
@@ -108,7 +238,7 @@ class SliderHandler {
         }
       }
 
-      let knobAlpha = CGFloat(max(0, min(1, (minValue - 0.08) * 5)))
+      let knobAlpha = self.showsPercentage ? CGFloat(1) : CGFloat(max(0, min(1, (presentedValue - 0.08) * 5)))
       for i in 1 ... 3 {
         let knobShadow = NSBezierPath(roundedRect: knobRect.offsetBy(dx: CGFloat(-1 * 2 * i), dy: 0), xRadius: knobRadius, yRadius: knobRadius)
         self.knobShadowColor.withAlphaComponent(self.knobShadowColor.alphaComponent * knobAlpha).setFill()
@@ -121,9 +251,9 @@ class SliderHandler {
 
       if self.isHighlightDisplayItems, self.displayHighlightItems.count > 2 {
         for currentMarkLocation in self.displayHighlightItems.values {
-          let highlightKnobX = aRect.origin.x + (aRect.width - aRect.height) * CGFloat(currentMarkLocation)
-          let highlightKnobRect = NSRect(x: highlightKnobX + (self.numOfTickmarks == 0 ? CGFloat(0) : self.tickMarkKnobExtraInset), y: aRect.origin.y, width: aRect.height, height: aRect.height).insetBy(dx: (self.numOfTickmarks == 0 ? CGFloat(0) : self.tickMarkKnobExtraInset) + CGFloat(self.numOfTickmarks == 0 ? 6 : 3), dy: CGFloat(self.numOfTickmarks == 0 ? 6 : 6))
-          let highlightKnobRadius = highlightKnobRect.height * 0.5 * (self.numOfTickmarks == 0 ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
+          let highlightKnobX = aRect.origin.x + leadingInset + travel * CGFloat(currentMarkLocation) + (handleWidth - aRect.height) / 2
+          let highlightKnobRect = NSRect(x: highlightKnobX + (!usesTickShape ? CGFloat(0) : self.tickMarkKnobExtraInset), y: aRect.origin.y, width: aRect.height, height: aRect.height).insetBy(dx: (!usesTickShape ? CGFloat(0) : self.tickMarkKnobExtraInset) + CGFloat(!usesTickShape ? 6 : 3), dy: CGFloat(!usesTickShape ? 6 : 6))
+          let highlightKnobRadius = highlightKnobRect.height * 0.5 * (!usesTickShape ? 1 : self.tickMarkKnobExtraRadiusMultiplier)
           let highlightKnob = NSBezierPath(roundedRect: highlightKnobRect, xRadius: highlightKnobRadius, yRadius: highlightKnobRadius)
           let highlightDisplayIndicatorAlpha = CGFloat(max(0, min(1, (currentMarkLocation - 0.08) * 5)))
           self.highlightDisplayIndicatorColor.withAlphaComponent(self.highlightDisplayIndicatorColor.alphaComponent * highlightDisplayIndicatorAlpha).setFill()
@@ -135,6 +265,17 @@ class SliderHandler {
       knob.stroke()
       self.barStrokeColor.setStroke()
       bar.stroke()
+      self.drawControlIcon(in: aRect, handle: knobRect, flipped: flipped)
+
+      if self.showsPercentage {
+        let text = "\(Int((self.doubleValue * 100).rounded()))%" as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+          .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular),
+          .foregroundColor: NSColor.black.withAlphaComponent(0.7),
+        ]
+        let size = text.size(withAttributes: attributes)
+        text.draw(in: NSRect(x: knobRect.maxX - 24 - size.width / 2, y: knobRect.midY - size.height / 2, width: size.width, height: size.height), withAttributes: attributes)
+      }
     }
   }
 
@@ -214,13 +355,15 @@ class SliderHandler {
     self.title = title
     let slider = SliderHandler.MCSlider(value: 0, minValue: 0, maxValue: 1, target: self, action: #selector(SliderHandler.valueChanged))
     let showPercent = prefs.bool(forKey: PrefKey.enableSliderPercent.rawValue)
+    let viewWidth: CGFloat = 248
+    let sliderWidth = viewWidth - 30
     slider.isEnabled = true
     slider.setNumOfCustomTickmarks(prefs.bool(forKey: PrefKey.showTickMarks.rawValue) ? 5 : 0)
     self.slider = slider
     if !DEBUG_MACOS10, #available(macOS 11.0, *) {
-      slider.frame.size.width = 180
+      slider.frame.size = NSSize(width: sliderWidth, height: 30)
       slider.frame.origin = NSPoint(x: 15, y: 5)
-      let view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 14))
+      let view = NSView(frame: NSRect(x: 0, y: 0, width: viewWidth, height: 40))
       view.frame.origin = NSPoint(x: 12, y: 0)
       var iconName = "circle.dashed"
       switch command {
@@ -229,25 +372,15 @@ class SliderHandler {
       case .contrast: iconName = "circle.lefthalf.fill"
       default: break
       }
-      let icon = SliderHandler.ClickThroughImageView()
-      icon.image = NSImage(systemSymbolName: iconName, accessibilityDescription: title)
-      icon.contentTintColor = NSColor.black.withAlphaComponent(0.6)
-      icon.frame = NSRect(x: view.frame.origin.x + 6.5, y: view.frame.origin.y + 13, width: 15, height: 15)
-      icon.imageAlignment = .alignCenter
+      let icon = NSImage(systemSymbolName: iconName, accessibilityDescription: title)?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [NSColor.black.withAlphaComponent(0.6)]))
+      (slider.cell as? MCSliderCell)?.controlIcon = icon
       view.addSubview(slider)
-      view.addSubview(icon)
-      self.icon = icon
-      if showPercent {
-        let percentageBox = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 17, width: 40, height: 12))
-        self.setupPercentageBox(percentageBox)
-        self.percentageBox = percentageBox
-        view.addSubview(percentageBox)
-      }
+      (slider.cell as? MCSliderCell)?.showsPercentage = showPercent
       self.view = view
     } else {
-      slider.frame.size.width = 180
+      slider.frame.size.width = sliderWidth - (showPercent ? 38 : 0)
       slider.frame.origin = NSPoint(x: 15, y: 5)
-      let view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 10))
+      let view = NSView(frame: NSRect(x: 0, y: 0, width: viewWidth, height: slider.frame.height + 10))
       view.addSubview(slider)
       if showPercent {
         let percentageBox = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 18, width: 40, height: 12))
@@ -320,9 +453,7 @@ class SliderHandler {
         slider.floatValue = value
       }
     }
-    if self.percentageBox == self.percentageBox {
-      self.percentageBox?.stringValue = "" + String(Int(value * 100)) + "%"
-    }
+    self.percentageBox?.stringValue = "\(Int((value * 100).rounded()))%"
     for display in self.displays {
       slider.setHighlightItem(display.identifier, value: value)
       if self.command == .brightness, let appleDisplay = display as? AppleDisplay {
@@ -378,9 +509,7 @@ class SliderHandler {
       } else {
         slider.setDisplayHighlightItems(false)
       }
-      if self.percentageBox == self.percentageBox {
-        self.percentageBox?.stringValue = "\(String(format: "%.0f%%", Double(value) * 100))"
-      }
+      self.percentageBox?.stringValue = "\(Int((value * 100).rounded()))%"
     }
   }
 }

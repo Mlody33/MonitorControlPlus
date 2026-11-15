@@ -66,7 +66,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     CGDisplayRegisterReconfigurationCallback({ _, _, _ in app.displayReconfigured() }, nil)
     self.configure(firstrun: true)
     DisplayManager.shared.createGammaActivityEnforcer()
-    self.updaterController.startUpdater()
+    if !usesLocalUpdates {
+      self.updaterController.startUpdater()
+    }
   }
 
   @objc func quitClicked(_: AnyObject) {
@@ -113,15 +115,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func setPrefsBuildNumber() {
     let currentBuildNumber = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1") ?? 1
-    let previousBuildNumber: Int = (Int(prefs.string(forKey: PrefKey.buildNumber.rawValue) ?? "0") ?? 0)
-    if self.safeMode || ((previousBuildNumber < MIN_PREVIOUS_BUILD_NUMBER) && previousBuildNumber > 0) || (previousBuildNumber > currentBuildNumber), let bundleID = Bundle.main.bundleIdentifier {
-      if !self.safeMode {
-        let alert = NSAlert()
-        alert.messageText = NSLocalizedString("Incompatible previous version", comment: "Shown in the alert dialog")
-        alert.informativeText = NSLocalizedString("Settings for an incompatible previous app version detected. Default settings are reloaded.", comment: "Shown in the alert dialog")
-        alert.runModal()
-      }
+    // Build order is not a settings schema. Local rebuilds and rollbacks must
+    // preserve preferences; safe mode remains an explicit reset operation.
+    if self.safeMode, let bundleID = Bundle.main.bundleIdentifier {
       prefs.removePersistentDomain(forName: bundleID)
+      prefs.set(true, forKey: preferencesMigrationKey)
     }
     prefs.set(currentBuildNumber, forKey: PrefKey.buildNumber.rawValue)
   }
@@ -130,7 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if !prefs.bool(forKey: PrefKey.appAlreadyLaunched.rawValue) {
       // Only settings that are not false, 0 or "" by default are set here. Assumes pre-wiped database.
       prefs.set(true, forKey: PrefKey.appAlreadyLaunched.rawValue)
-      prefs.set(true, forKey: PrefKey.SUEnableAutomaticChecks.rawValue)
+      prefs.set(!usesLocalUpdates, forKey: PrefKey.SUEnableAutomaticChecks.rawValue)
     }
   }
 
@@ -296,6 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     if let bundleID = Bundle.main.bundleIdentifier {
       prefs.removePersistentDomain(forName: bundleID)
+      prefs.set(true, forKey: preferencesMigrationKey)
     }
     app.updateStatusItemVisibility(true)
     self.setDefaultPrefs()

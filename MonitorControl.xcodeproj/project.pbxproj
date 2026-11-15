@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1D000000000000000000010 /* OtherDisplay+Power.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000006 /* OtherDisplay+Power.swift */; };
+		A1D00000000000000000000F /* InputSourceSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000005 /* InputSourceSlider.swift */; };
+		A1D00000000000000000000E /* OtherDisplay+InputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000004 /* OtherDisplay+InputSource.swift */; };
+		A1D00000000000000000000D /* DDCInputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000003 /* DDCInputSource.swift */; };
+		A1D000000000000000000001 /* PreferencesMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000002 /* PreferencesMigration.swift */; };
 		28D1DDF2227FBE71004CB494 /* NSScreen+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D1DDF1227FBE71004CB494 /* NSScreen+Extension.swift */; };
 		28D1DDF3227FC8C6004CB494 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 56754EB01D9A4016007BCDC5 /* Assets.xcassets */; };
 		56754EAF1D9A4016007BCDC5 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56754EAE1D9A4016007BCDC5 /* main.swift */; };
@@ -75,6 +80,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1D000000000000000000006 /* OtherDisplay+Power.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OtherDisplay+Power.swift"; sourceTree = "<group>"; };
+		A1D000000000000000000005 /* InputSourceSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InputSourceSlider.swift"; sourceTree = "<group>"; };
+		A1D000000000000000000004 /* OtherDisplay+InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OtherDisplay+InputSource.swift"; sourceTree = "<group>"; };
+		A1D000000000000000000003 /* DDCInputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DDCInputSource.swift"; sourceTree = "<group>"; };
+		A1D000000000000000000002 /* PreferencesMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMigration.swift; sourceTree = "<group>"; };
 		01D6471D2AF916A800321FFB /* hi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hi; path = hi.lproj/Main.strings; sourceTree = "<group>"; };
 		3FA7CC692A9525B4AD4ADF52 /* fa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fa; path = fa.lproj/Main.strings; sourceTree = "<group>"; };
 		01D6471E2AF916A800321FFB /* hi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hi; path = hi.lproj/InternetAccessPolicy.strings; sourceTree = "<group>"; };
@@ -88,7 +98,7 @@
 		2FBCCED52853930200C06A13 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Main.strings; sourceTree = "<group>"; };
 		2FBCCED62853930200C06A13 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InternetAccessPolicy.strings; sourceTree = "<group>"; };
 		2FBCCED72853930200C06A13 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
-		56754EAB1D9A4016007BCDC5 /* MonitorControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonitorControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56754EAB1D9A4016007BCDC5 /* MonitorControlPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonitorControlPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		56754EAE1D9A4016007BCDC5 /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; lineEnding = 0; path = main.swift; sourceTree = "<group>"; };
 		56754EB01D9A4016007BCDC5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6C85EFD922C941B000227EA1 /* DisplayManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DisplayManager.swift; sourceTree = "<group>"; };
@@ -248,7 +258,7 @@
 		56754EAC1D9A4016007BCDC5 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				56754EAB1D9A4016007BCDC5 /* MonitorControl.app */,
+				56754EAB1D9A4016007BCDC5 /* MonitorControlPlus.app */,
 				F06792E7200A73460066C438 /* MonitorControlHelper.app */,
 			);
 			name = Products;
@@ -278,6 +288,9 @@
 				6CBFE27923DB266000D1BC41 /* Display.swift */,
 				6CBFE27B23DB27A200D1BC41 /* AppleDisplay.swift */,
 				F03A8DF11FFBAA6F0034DC27 /* OtherDisplay.swift */,
+				A1D000000000000000000004 /* OtherDisplay+InputSource.swift */,
+				A1D000000000000000000006 /* OtherDisplay+Power.swift */,
+				A1D000000000000000000003 /* DDCInputSource.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -312,6 +325,8 @@
 				F01B0685228221B6008E64DB /* Bridging-Header.h */,
 				AA99521626FE25AB00612E07 /* AppDelegate.swift */,
 				AA78BDBC2709FE7B00CA8DF7 /* UpdaterDelegate.swift */,
+				A1D000000000000000000005 /* InputSourceSlider.swift */,
+				A1D000000000000000000002 /* PreferencesMigration.swift */,
 				AA99521826FE49A300612E07 /* MenuHandler.swift */,
 				F01B068F228221B7008E64DB /* SliderHandler.swift */,
 				6C85EFD922C941B000227EA1 /* DisplayManager.swift */,
@@ -401,8 +416,8 @@
 				AA70817B27046B9800CC5625 /* Sparkle */,
 				AAD7DD332CAFF3D90062822F /* Settings */,
 			);
-			productName = MonitorControl.OSX;
-			productReference = 56754EAB1D9A4016007BCDC5 /* MonitorControl.app */;
+			productName = MonitorControlPlus;
+			productReference = 56754EAB1D9A4016007BCDC5 /* MonitorControlPlus.app */;
 			productType = "com.apple.product-type.application";
 		};
 		F06792E6200A73460066C438 /* MonitorControlHelper */ = {
@@ -559,7 +574,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = "/bin/bash -euo pipefail";
-			shellScript = "files_have_changed() {\n  test -n \"$(find \"${1}\" ! -path '*xcuserdata*' ! -path '*.git' ! -path '*.git/*' -newer \"${2}\")\"\n}\n\nif files_have_changed \"${PROJECT_DIR}\" \"${INFOPLIST_FILE}\"; then\n  build_number=\"$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${INFOPLIST_FILE}\")\"\n  new_build_number=\"$((build_number + 1))\"\n\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${new_build_number}\" \"${INFOPLIST_FILE/Helper/}\"\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${new_build_number}\" \"${INFOPLIST_FILE}\"\nfi\n";
+			shellScript = "# Build numbers are supplied by scripts/local-update.py.\n";
 		};
 		28F6A5822283548F00A4ADCD /* Sync Version Numbers */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -578,7 +593,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = "/bin/bash -euo pipefail";
-			shellScript = "version_number=\"$(/usr/libexec/PlistBuddy -c \"Print CFBundleShortVersionString\" \"${INFOPLIST_FILE/Helper/}\")\"\n\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${version_number}\" \"${INFOPLIST_FILE/Helper/}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${version_number}\" \"${INFOPLIST_FILE}\"\n";
+			shellScript = "# Version settings are shared by the local update build.\n";
 		};
 		6CB1BDB2253C7EBE00B52124 /* [Localization] Run BartyCrouch */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -637,6 +652,11 @@
 				AA44E70727038F7F00E06865 /* KeyboardShortcutsManager.swift in Sources */,
 				F03A8DF21FFBAA6F0034DC27 /* OtherDisplay.swift in Sources */,
 				AA78BDBD2709FE7B00CA8DF7 /* UpdaterDelegate.swift in Sources */,
+				A1D00000000000000000000F /* InputSourceSlider.swift in Sources */,
+				A1D00000000000000000000E /* OtherDisplay+InputSource.swift in Sources */,
+				A1D000000000000000000010 /* OtherDisplay+Power.swift in Sources */,
+				A1D00000000000000000000D /* DDCInputSource.swift in Sources */,
+				A1D000000000000000000001 /* PreferencesMigration.swift in Sources */,
 				AA44E7052703790100E06865 /* KeyboardShortcuts+Extension.swift in Sources */,
 				F0A489C4279C71B200BEDFD6 /* OnboardingViewController.swift in Sources */,
 				AA16139B26BE772E00DCF027 /* Arm64DDC.swift in Sources */,
@@ -786,7 +806,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/**";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -848,7 +868,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/**";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -876,10 +896,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7100;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 299YSU96J7;
+				DEVELOPMENT_TEAM = C5A6GBX9B2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/**",
+					"$(inherited)",
 					"/System/Library/PrivateFrameworks/**",
 				);
 				INFOPLIST_FILE = MonitorControl/Info.plist;
@@ -889,8 +909,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MARKETING_VERSION = 4.4.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.monitorcontrol.MonitorControl;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = local.mateusz.MonitorControlPlus;
+				PRODUCT_MODULE_NAME = MonitorControl;
+				PRODUCT_NAME = MonitorControlPlus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "MonitorControl/Support/Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -913,10 +934,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7100;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 299YSU96J7;
+				DEVELOPMENT_TEAM = C5A6GBX9B2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/**",
+					"$(inherited)",
 					"/System/Library/PrivateFrameworks/**",
 				);
 				INFOPLIST_FILE = MonitorControl/Info.plist;
@@ -926,8 +947,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MARKETING_VERSION = 4.4.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.monitorcontrol.MonitorControl;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = local.mateusz.MonitorControlPlus;
+				PRODUCT_MODULE_NAME = MonitorControl;
+				PRODUCT_NAME = MonitorControlPlus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "MonitorControl/Support/Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -953,7 +975,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7100;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 299YSU96J7;
+				DEVELOPMENT_TEAM = C5A6GBX9B2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				INFOPLIST_FILE = MonitorControlHelper/Info.plist;
@@ -962,8 +984,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
-				MARKETING_VERSION = 4.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.monitorcontrol.MonitorControlHelper;
+				MARKETING_VERSION = 4.4.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.mateusz.MonitorControlPlusHelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.5;
@@ -984,7 +1006,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7100;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 299YSU96J7;
+				DEVELOPMENT_TEAM = C5A6GBX9B2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				INFOPLIST_FILE = MonitorControlHelper/Info.plist;
@@ -993,8 +1015,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
-				MARKETING_VERSION = 4.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.monitorcontrol.MonitorControlHelper;
+				MARKETING_VERSION = 4.4.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.mateusz.MonitorControlPlusHelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.5;

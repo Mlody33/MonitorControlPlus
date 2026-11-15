@@ -1,3 +1,12 @@
+# MonitorControlPlus
+
+Local build/update: `python3 scripts/local-update.py` (Apple Development).
+For automatic rebuild/restart: `python3 scripts/local-update.py --watch`.
+See [local development and signing](docs/LOCAL_DEVELOPMENT.md).
+
+A local fork of MonitorControl with per-display input source sliders. The Xcode project
+and scheme remain named `MonitorControl`; the built application is `MonitorControlPlus.app`.
+
 <img src=".github/Icon-cropped.png" width="200" alt="App icon" align="left"/>
 
 <div>
@@ -67,6 +76,50 @@ For additional features, more advanced brightness control with XDR/HDR brightnes
 6. Open `Settings…` for customization options (enable `Show advanced settings` for even more options).
 7. You can set up custom keyboard shortcuts under the `Keyboard` in Settings (the app uses Apple media keys by default).
 8. If you have any questions, go to [Discussions](https://github.com/MonitorControl/MonitorControl/discussions)!
+
+### Selecting a display input source
+
+Each external DDC-controlled display has its own stepped source slider. Its stops
+come from the monitor's MCCS capabilities (`0x60`), rather than a hard-coded list.
+The selected position follows the current input read from the display. The list
+is refreshed when opening the menu, and the current input is checked every 1.5
+seconds while the menu is open. Source controls stay separate when brightness
+sliders are combined.
+
+Release the thumb on the desired source to send one selection request to that
+display. The app waits for readback to confirm the change, retrying over up to
+8 seconds while a monitor settles. A failed/unreadable source is shown as
+unconfirmed/unavailable; a successful transport write alone is not treated as a
+confirmed source change. No source is restored automatically on startup or wake.
+
+Capabilities describe supported inputs, **not which ports have a connected
+cable**. Both tested ThinkVision P27h-20 monitors report DisplayPort (`0x0F`),
+HDMI (`0x11`), and USB-C (`0x31`). The USB-C label for `0x31` is specific to this
+model; unrecognized source codes remain visible in hexadecimal. If the input
+list cannot be read, the app can show only the currently observed input and
+cannot offer a usable multi-source selector.
+
+On a Mac mini M4, readback was verified over both USB-C and HDMI. The earlier
+hardware test also confirmed switching the USB-C-connected P27h-20 to console
+HDMI and returning to USB-C using the retained DDC service. Other monitors may
+stop accepting commands from an inactive input.
+
+### Per-display DPMS button
+
+The small round power button beside each source slider requests hardware DPMS
+off (`0xD6 = 0x04`) for that display only. Clicking again attempts power on
+(`0x01`), with bounded wake retries. Power actions never run automatically on
+startup or wake, and the write-only hard-off code `0x05` is not used.
+
+The button first reads power mode. Unsupported/unreadable awake displays have a
+disabled button; after an accepted off request the wake action remains available
+even if the monitor stops replying. A transport write is not treated as a
+confirmed power-state readback. If the monitor disappears from macOS or no longer
+accepts DDC commands while asleep, its physical power button may be needed.
+
+The two P27h-20 monitors advertise modes `01 04 05`; current mode `01` was read on
+both. The new power request logic was tested with simulated DDC communication,
+without putting the user's monitors to sleep during development.
 
 ### macOS compatibility
 

@@ -73,7 +73,8 @@ class Arm64DDC: NSObject {
     var values: (UInt16, UInt16)?
     var send: [UInt8] = [command]
     var reply = [UInt8](repeating: 0, count: 11)
-    if Self.performDDCCommunication(service: service, send: &send, reply: &reply, writeSleepTime: writeSleepTime, numOfWriteCycles: numOfWriteCycles, readSleepTime: readSleepTime, numOfRetryAttemps: numOfRetryAttemps, retrySleepTime: retrySleepTime) {
+    if Self.performDDCCommunication(service: service, send: &send, reply: &reply, writeSleepTime: writeSleepTime, numOfWriteCycles: numOfWriteCycles, readSleepTime: readSleepTime, numOfRetryAttemps: numOfRetryAttemps, retrySleepTime: retrySleepTime),
+       reply[0] == 0x6E, reply[1] == 0x88, reply[2] == 0x02, reply[3] == 0, reply[4] == command {
       let max = UInt16(reply[6]) * 256 + UInt16(reply[7])
       let current = UInt16(reply[8]) * 256 + UInt16(reply[9])
       values = (current, max)
@@ -81,6 +82,18 @@ class Arm64DDC: NSObject {
       values = nil
     }
     return values
+  }
+
+  static func readInputCapabilities(service: IOAVService?) -> [UInt16]? {
+    guard let service = service else { return nil }
+    return DDCInputCapabilities.read { request, count in
+      var packet = Array(request.dropFirst())
+      guard IOAVServiceWriteI2C(service, 0x37, 0x51, &packet, UInt32(packet.count)) == KERN_SUCCESS else { return nil }
+      usleep(60000)
+      var reply = [UInt8](repeating: 0, count: count)
+      guard IOAVServiceReadI2C(service, 0x37, 0, &reply, UInt32(count)) == KERN_SUCCESS else { return nil }
+      return reply
+    }
   }
 
   static func write(service: IOAVService?, command: UInt8, value: UInt16, writeSleepTime: UInt32? = nil, numOfWriteCycles: UInt8? = nil, numOfRetryAttemps: UInt8? = nil, retrySleepTime: UInt32? = nil) -> Bool {
