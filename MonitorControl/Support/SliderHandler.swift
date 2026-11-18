@@ -13,6 +13,34 @@ class SliderHandler {
   let command: Command
   var icon: ClickThroughImageView?
 
+  /// Shared timing for handle motion and the icon/capsule transition.
+  private final class ValueTransition {
+    private var timer: Timer?
+
+    func cancel() {
+      self.timer?.invalidate()
+      self.timer = nil
+    }
+
+    deinit { self.cancel() }
+
+    func animate(from origin: Double, to destination: Double, in view: NSView?, update: @escaping (Double) -> Void) {
+      self.cancel()
+      let started = ProcessInfo.processInfo.systemUptime
+      let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self, weak view] timer in
+        guard let self = self else { timer.invalidate(); return }
+        let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 0.22)
+        let eased = progress * progress * (3 - 2 * progress)
+        update(origin + (destination - origin) * eased)
+        view?.needsDisplay = true
+        if progress >= 1 { self.cancel() }
+      }
+      self.timer = timer
+      RunLoop.main.add(timer, forMode: .common)
+      RunLoop.main.add(timer, forMode: .eventTracking)
+    }
+  }
+
   class MCSliderCell: NSSliderCell {
     let knobFillColor = NSColor(white: 1, alpha: 1)
     let knobFillColorTracking = NSColor(white: 0.8, alpha: 1)
@@ -41,10 +69,10 @@ class SliderHandler {
     var animatesWhileTracking: Bool { false }
     private var handleTarget: Double?
     private var handlePosition: Double = 0
-    private var handleAnimation: Timer?
+    private let handleAnimation = ValueTransition()
     private var iconOutside: CGFloat = 0
     private var iconTargetOutside: Bool?
-    private var iconAnimation: Timer?
+    private let iconAnimation = ValueTransition()
 
     private func updateIconState(compactGap: CGFloat) {
       guard self.controlIcon != nil else { return }
@@ -54,29 +82,15 @@ class SliderHandler {
       guard self.iconTargetOutside != outside else { return }
       let initial = self.iconTargetOutside == nil
       self.iconTargetOutside = outside
-      self.iconAnimation?.invalidate()
-      self.iconAnimation = nil
+      self.iconAnimation.cancel()
       let destination: CGFloat = outside ? 1 : 0
       guard !initial, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
         self.iconOutside = destination
         return
       }
-      let origin = self.iconOutside
-      let started = ProcessInfo.processInfo.systemUptime
-      let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-        guard let self = self else { timer.invalidate(); return }
-        let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 0.22)
-        let eased = CGFloat(progress * progress * (3 - 2 * progress))
-        self.iconOutside = origin + (destination - origin) * eased
-        self.controlView?.needsDisplay = true
-        if progress >= 1 {
-          timer.invalidate()
-          self.iconAnimation = nil
-        }
+      self.iconAnimation.animate(from: Double(self.iconOutside), to: Double(destination), in: self.controlView) { [weak self] value in
+        self?.iconOutside = CGFloat(value)
       }
-      self.iconAnimation = timer
-      RunLoop.main.add(timer, forMode: .common)
-      RunLoop.main.add(timer, forMode: .eventTracking)
     }
 
     // Only the presentation moves: DDC writes and accessibility always use the
@@ -85,39 +99,16 @@ class SliderHandler {
       let target = min(1, max(0, self.doubleValue))
       let immediate = (self.isTracking && !self.animatesWhileTracking) || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
       if self.handleTarget == nil || immediate {
-        self.handleAnimation?.invalidate()
-        self.handleAnimation = nil
+        self.handleAnimation.cancel()
         self.handleTarget = target
         self.handlePosition = target
       } else if self.handleTarget != target {
         self.handleTarget = target
-        self.handleAnimation?.invalidate()
-        let origin = self.handlePosition
-        let started = ProcessInfo.processInfo.systemUptime
-        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-          guard let self = self else {
-            timer.invalidate()
-            return
-          }
-          let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 0.22)
-          let eased = progress * progress * (3 - 2 * progress)
-          self.handlePosition = origin + (target - origin) * eased
-          self.controlView?.needsDisplay = true
-          if progress >= 1 {
-            timer.invalidate()
-            self.handleAnimation = nil
-          }
+        self.handleAnimation.animate(from: self.handlePosition, to: target, in: self.controlView) { [weak self] value in
+          self?.handlePosition = value
         }
-        self.handleAnimation = timer
-        RunLoop.main.add(timer, forMode: .common)
-        RunLoop.main.add(timer, forMode: .eventTracking)
       }
       return self.handlePosition
-    }
-
-    deinit {
-      self.iconAnimation?.invalidate()
-      self.handleAnimation?.invalidate()
     }
 
     required init(coder aDecoder: NSCoder) {

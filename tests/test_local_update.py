@@ -2,6 +2,7 @@ import importlib.util
 import argparse
 from pathlib import Path
 import plistlib
+import os
 import shutil
 import subprocess
 import tempfile
@@ -74,6 +75,99 @@ class InstallationTests(unittest.TestCase):
                     update.update(args, {'build': 7156})
             self.assertEqual(update.app_info(destination)['CFBundleVersion'], '7156')
             self.assertTrue(list(install_dir.glob('.MonitorControlPlus-update-*/failed.app')))
+
+
+class WatchTests(unittest.TestCase):
+    def test_initial_failure_retries_without_another_source_edit(self):
+        clock = [0]
+        args = argparse.Namespace(watch=True)
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch.object(update, 'source_snapshot', return_value={'unchanged': (1, 1)}), \
+             patch.object(update.time, 'sleep', side_effect=sleep), \
+             patch.object(update.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(update, 'update', side_effect=[RuntimeError('quit timeout'), KeyboardInterrupt]) as attempt:
+            with self.assertRaises(KeyboardInterrupt):
+                update.watch_updates(args, {})
+        self.assertEqual(attempt.call_count, 2)
+        self.assertGreaterEqual(clock[0], 5)
+
+    def test_single_update_still_reports_failure(self):
+        with patch.object(update, 'source_snapshot', return_value={}), \
+             patch.object(update, 'update', side_effect=RuntimeError('build failed')):
+            with self.assertRaisesRegex(RuntimeError, 'build failed'):
+                update.watch_updates(argparse.Namespace(watch=False), {})
+
+
+class RetryAndCleanupTests(unittest.TestCase):
+    def test_quit_timeout_retries_install_without_rebuilding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state_dir = root / 'state'
+            state_dir.mkdir()
+            install_dir = root / 'Applications'
+            install_dir.mkdir()
+            destination = install_dir / update.APP_NAME
+            built = state_dir / 'DerivedData/Build/Products/Debug' / update.APP_NAME
+            for app, version in ((destination, '7156'), (built, '7157')):
+                (app / 'Contents').mkdir(parents=True)
+                (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+                    'CFBundleIdentifier': update.BUNDLE_ID, 'CFBundleVersion': version,
+                }))
+            builds = []
+            quits = []
+            def invoke(*args, **kwargs):
+                if args[0] == 'xcodebuild':
+                    builds.append(args)
+                if args[0] == 'ditto':
+                    shutil.copytree(args[1], args[2])
+                if args[0] == 'codesign' and '-r-' in args:
+                    return subprocess.CompletedProcess(args, 0, stdout=b'designated => identifier "test"\n', stderr=b'')
+                if args[-1] == 'quit':
+                    quits.append(args)
+                    if len(quits) == 1:
+                        raise subprocess.CalledProcessError(1, args)
+                return subprocess.CompletedProcess(args, 0)
+            args = argparse.Namespace(identity=None, install_dir=install_dir, build_only=False)
+            state = {'build': 7156}
+            with patch.object(update, 'STATE', state_dir), \
+                 patch.object(update, 'source_revision', return_value='same source'), \
+                 patch.object(update, 'signing_identity', return_value=('A' * 40, 'ABCDEFGHIJ')), \
+                 patch.object(update, 'run', side_effect=invoke), \
+                 patch.object(update, 'verify'), patch.object(update.time, 'sleep'), \
+                 patch.object(update.subprocess, 'run'):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    update.update(args, state)
+                candidate = Path(state['pending']['candidate'])
+                self.assertTrue(candidate.is_dir())
+                self.assertEqual(update.app_info(destination)['CFBundleVersion'], '7156')
+                update.update(args, state)
+            self.assertEqual(len(builds), 1)
+            self.assertEqual(len(quits), 2)
+            self.assertEqual(update.app_info(destination)['CFBundleVersion'], '7157')
+            self.assertNotIn('pending', state)
+
+    def test_cleanup_retains_three_bundles_and_leaves_unknown_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stages = []
+            for number in range(6):
+                stage = root / f'.MonitorControlPlus-update-{number}'
+                contents = stage / 'previous.app/Contents'
+                contents.mkdir(parents=True)
+                (contents / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': update.BUNDLE_ID}))
+                os.utime(stage, (number + 1, number + 1))
+                stages.append(stage)
+            unknown = root / '.MonitorControlPlus-update-user-files'
+            unknown.mkdir()
+            (unknown / 'keep.txt').write_text('unrelated')
+            symlink = root / '.MonitorControlPlus-update-link'
+            symlink.symlink_to(stages[-1], target_is_directory=True)
+            update.cleanup_updates(root)
+            self.assertTrue(all(not stage.exists() for stage in stages[:3]))
+            self.assertTrue(all(stage.exists() for stage in stages[3:]))
+            self.assertTrue((unknown / 'keep.txt').exists())
+            self.assertTrue(symlink.is_symlink())
 
 
 if __name__ == '__main__':

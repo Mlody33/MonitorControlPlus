@@ -9,14 +9,18 @@ struct DisplayPowerResult {
 
 extension OtherDisplay {
   func refreshPowerMode(completion: @escaping () -> Void) {
-    guard !self.isSw(), !self.powerRequestPending, !self.inputSwitchPending,
-          !self.readPrefAsBool(key: .unavailableDDC, for: .powerMode),
-          app.sleepID == 0, app.reconfigureID == 0
+    let context = DDCOperationContext(display: self, command: .powerMode)
+    guard context.isValid, !self.powerRefreshPending, !self.powerRequestPending, !self.inputSwitchPending
     else { completion(); return }
+    self.powerRefreshPending = true
     DisplayManager.shared.globalDDCQueue.async {
-      let mode = self.readDisplayPowerMode()
+      let mode = self.readDisplayPowerMode(context: context)
       DispatchQueue.main.async {
-        self.recordDisplayPowerMode(mode)
+        self.powerRefreshPending = false
+        // A power action may have started while this read was queued.
+        if context.isValid, !self.powerRequestPending, !self.inputSwitchPending {
+          self.recordDisplayPowerMode(mode)
+        }
         completion()
       }
     }
@@ -25,17 +29,15 @@ extension OtherDisplay {
   /// Deliberate per-display power action. Never restored on startup or wake.
   /// DPMS off is 0x04; the write-only hard-off command 0x05 is not used.
   func setDisplayPower(awake: Bool, completion: @escaping (DisplayPowerResult) -> Void) {
-    guard !self.isSw(), !self.powerRequestPending, !self.inputSwitchPending,
-          !self.readPrefAsBool(key: .unavailableDDC, for: .powerMode),
-          app.sleepID == 0, app.reconfigureID == 0,
-          DisplayManager.shared.getOtherDisplays().contains(where: { $0 === self })
+    let context = DDCOperationContext(display: self, command: .powerMode)
+    guard context.isValid, !self.powerRequestPending, !self.inputSwitchPending
     else { completion(DisplayPowerResult(sent: false, reportedMode: nil)); return }
     self.powerRequestPending = true
-    self.performPowerRequest(awake: awake, attempts: awake ? 3 : 1, completion: completion)
+    self.performPowerRequest(awake: awake, attempts: awake ? 3 : 1, context: context, completion: completion)
   }
 
-  private func readDisplayPowerMode() -> UInt16? {
-    guard app.sleepID == 0, app.reconfigureID == 0 else { return nil }
+  private func readDisplayPowerMode(context: DDCOperationContext) -> UInt16? {
+    guard context.isValid else { return nil }
     let command = self.getRemapControlCodes(command: .powerMode).first ?? Command.powerMode.rawValue
     let mode: UInt16?
     if Arm64DDC.isArm64 {
@@ -52,9 +54,9 @@ extension OtherDisplay {
     if let mode = mode { self.dpmsOffRequested = mode != 1 }
   }
 
-  private func performPowerRequest(awake: Bool, attempts: Int, completion: @escaping (DisplayPowerResult) -> Void) {
+  private func performPowerRequest(awake: Bool, attempts: Int, context: DDCOperationContext, completion: @escaping (DisplayPowerResult) -> Void) {
     DisplayManager.shared.globalDDCQueue.async {
-      guard app.sleepID == 0, app.reconfigureID == 0, !self.isSw() else {
+      guard context.isValid else {
         DispatchQueue.main.async {
           self.powerRequestPending = false
           completion(DisplayPowerResult(sent: false, reportedMode: nil))
@@ -67,18 +69,21 @@ extension OtherDisplay {
         ? Arm64DDC.write(service: self.arm64avService, command: command, value: value, numOfWriteCycles: 1, numOfRetryAttemps: 0)
         : (self.ddc?.write(command: command, value: value, errorRecoveryWaitTime: 2000, numofWriteCycles: 1) ?? false)
       DisplayManager.shared.globalDDCQueue.asyncAfter(deadline: .now() + 1) {
-        let mode = self.readDisplayPowerMode()
-        if awake, mode != 1, attempts > 1, app.sleepID == 0, app.reconfigureID == 0 {
-          self.performPowerRequest(awake: true, attempts: attempts - 1, completion: completion)
+        let mode = self.readDisplayPowerMode(context: context)
+        if awake, mode != 1, attempts > 1, context.isValid {
+          self.performPowerRequest(awake: true, attempts: attempts - 1, context: context, completion: completion)
           return
         }
         DispatchQueue.main.async {
           // Sleeping monitors can stop replying. Preserve the wake action after
           // a sent off request, without treating transport success as readback.
-          if sent, !awake { self.dpmsOffRequested = true }
-          self.recordDisplayPowerMode(mode)
+          let valid = context.isValid
+          if valid {
+            if sent, !awake { self.dpmsOffRequested = true }
+            self.recordDisplayPowerMode(mode)
+          }
           self.powerRequestPending = false
-          completion(DisplayPowerResult(sent: sent, reportedMode: mode))
+          completion(DisplayPowerResult(sent: valid && sent, reportedMode: valid ? mode : nil))
         }
       }
     }

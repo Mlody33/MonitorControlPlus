@@ -18,7 +18,11 @@ python3 scripts/local-update.py --watch
 ```
 
 Stop the watcher with Ctrl+C. A build failure leaves the installed application
-untouched. Only one updater/watcher may run at a time.
+untouched. Only one updater/watcher may run at a time. Initial and later failures
+are retried automatically with a 5–60 second backoff, without requiring another
+source edit. A staged, signed build is reused after a quit timeout; it is rebuilt
+if the source snapshot changes. Pending installation metadata survives a watcher
+restart in `.local-update/state.json`.
 
 Other options:
 
@@ -77,8 +81,10 @@ a monotonic build counter, the selected signing identity, the build log, and
 pre-update preferences exports. The counter advances even if a build fails.
 The script does not edit checked-in Info.plist files to number builds.
 
-Old bundles are retained as `previous.app` inside a hidden
-`.MonitorControlPlus-update-*` directory beside the installation. If replacement
+The three newest recognized update directories are retained beside the
+installation as `.MonitorControlPlus-update-*`, with `previous.app` for rollback.
+Older recognized directories are pruned only after a verified successful launch;
+unknown directories and symlinks are left alone. If replacement
 or launch verification fails, the updater restores that previous bundle.
 Preference exports live in `.local-update/preferences-backups/`.
 
@@ -112,6 +118,7 @@ xcrun swiftc MonitorControl/Enums/Command.swift MonitorControl/Model/DDCInputSou
   tests/InputSourceTests.swift -o /tmp/monitor-input-tests
 /tmp/monitor-input-tests
 xcrun swiftc MonitorControl/Enums/Command.swift MonitorControl/Model/DDCInputSource.swift \
+  MonitorControl/Model/DDCOperationContext.swift \
   MonitorControl/Model/OtherDisplay+InputSource.swift tests/InputSourceOperationTests.swift \
   -o /tmp/monitor-input-operation-tests
 /tmp/monitor-input-operation-tests
@@ -123,7 +130,25 @@ DDC transports and virtualize its retry delays; they do not touch real displays.
 DPMS operation checks (simulated DDC; no real power changes):
 
 ```sh
-xcrun swiftc MonitorControl/Enums/Command.swift MonitorControl/Model/OtherDisplay+Power.swift \
+xcrun swiftc MonitorControl/Enums/Command.swift MonitorControl/Model/DDCOperationContext.swift \
+  MonitorControl/Model/OtherDisplay+Power.swift \
   tests/DisplayPowerTests.swift -o /tmp/monitor-power-tests
 /tmp/monitor-power-tests
 ```
+
+UI regression checks (fake displays; compiles the actual slider implementations):
+
+```sh
+xcrun swiftc MonitorControl/Enums/Command.swift MonitorControl/Enums/PrefKey.swift \
+  MonitorControl/Model/DDCInputSource.swift MonitorControl/Support/SliderHandler.swift \
+  MonitorControl/Support/InputSourceSlider.swift tests/SliderUITests.swift \
+  -o /tmp/monitor-ui-tests
+/tmp/monitor-ui-tests
+```
+
+Queued input/power operations are invalidated by display list changes and sleep
+notifications. Validation uses a lock-protected registry, never a synchronous
+hop to the main queue (which can itself be waiting for a DDC read). Input
+capabilities are cached for the display instance; menu opens refresh the current
+source, not the full capabilities string. Power polling permits one queued read
+per display, and its UI completion never resets an active source drag.

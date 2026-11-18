@@ -7,7 +7,9 @@ import os.log
 class DisplayManager {
   static let shared = DisplayManager()
 
-  var displays: [Display] = []
+  var displays: [Display] = [] {
+    didSet { DDCOperationRegistry.shared.replaceDisplays(self.getOtherDisplays()) }
+  }
   var audioControlTargetDisplays: [OtherDisplay] = []
   let globalDDCQueue = DispatchQueue(label: "Global DDC queue")
   let gammaActivityEnforcer = NSWindow(contentRect: .init(origin: NSPoint(x: 0, y: 0), size: .init(width: DEBUG_GAMMA_ENFORCER ? 15 : 1, height: DEBUG_GAMMA_ENFORCER ? 15 : 1)), styleMask: [], backing: .buffered, defer: false)

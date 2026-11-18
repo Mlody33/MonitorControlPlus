@@ -2,13 +2,17 @@ import Cocoa
 
 final class TestQueue {
   private let queue = DispatchQueue(label: "InputSourceOperationTests")
+  func suspend() { self.queue.suspend() }
+  func resume() { self.queue.resume() }
   func async(execute: @escaping () -> Void) { self.queue.async(execute: execute) }
   func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) { self.queue.async(execute: execute) }
 }
 final class DisplayManager {
   static let shared = DisplayManager()
   let globalDDCQueue = TestQueue() // Virtualize only the retry delay.
-  var displays: [OtherDisplay] = []
+  var displays: [OtherDisplay] = [] {
+    didSet { DDCOperationRegistry.shared.replaceDisplays(self.displays) }
+  }
   func getOtherDisplays() -> [OtherDisplay] { self.displays }
 }
 final class TestApp { var sleepID = 0; var reconfigureID = 0 }
@@ -22,14 +26,17 @@ final class IntelDDC {
 enum Arm64DDC {
   static let isArm64 = true
   static var reads: [UInt16?] = []
+  static var capabilitiesReads = 0
+  static var onWrite: (() -> Void)?
   static var writes: [(Int?, UInt8, UInt16)] = []
-  static func readInputCapabilities(service: Int?) -> [UInt16]? { [0x0F, 0x11, 0x31] }
+  static func readInputCapabilities(service: Int?) -> [UInt16]? { self.capabilitiesReads += 1; return [0x0F, 0x11, 0x31] }
   static func read(service: Int?, command: UInt8, numOfRetryAttemps: Int) -> (current: UInt16, max: UInt16)? {
     guard !self.reads.isEmpty, let value = self.reads.removeFirst() else { return nil }
     return (value, 0)
   }
   static func write(service: Int?, command: UInt8, value: UInt16) -> Bool {
     self.writes.append((service, command, value))
+    self.onWrite?()
     return true
   }
 }
@@ -89,6 +96,40 @@ struct InputSourceOperationTests {
     result = nil
     display.switchInput(to: 0x31) { result = $0 }
     if case .unconfirmed(nil) = result! {} else { assertionFailure() }
+    app.sleepID = 0
+    let queue = DisplayManager.shared.globalDDCQueue
+    let writesBefore = Arm64DDC.writes.count
+    queue.suspend()
+    result = nil
+    display.switchInput(to: 0x31) { result = $0 }
+    DisplayManager.shared.displays = [other]
+    queue.resume()
+    self.wait { result != nil }
+    assert(Arm64DDC.writes.count == writesBefore && !display.inputSwitchPending)
+
+    DisplayManager.shared.displays = [display, other]
+    queue.suspend()
+    result = nil
+    display.switchInput(to: 0x31) { result = $0 }
+    DDCOperationRegistry.shared.invalidate()
+    queue.resume()
+    self.wait { result != nil }
+    assert(Arm64DDC.writes.count == writesBefore)
+
+    Arm64DDC.onWrite = {
+      DispatchQueue.main.sync { DisplayManager.shared.displays = [other] }
+    }
+    result = nil
+    display.switchInput(to: 0x31) { result = $0 }
+    self.wait { result != nil }
+    assert(Arm64DDC.writes.count == writesBefore + 1, "No retries after removal")
+    Arm64DDC.onWrite = nil
+    DisplayManager.shared.displays = [display, other]
+    Arm64DDC.reads = [0x31]
+    snapshot = nil
+    display.refreshInputSources { snapshot = $0 }
+    self.wait { snapshot != nil }
+    assert(Arm64DDC.capabilitiesReads == 1, "Reuse capabilities for the same display")
     print("PASS: real source operations confirm readback, tolerate settling, retry, reject concurrent/unknown/sleep requests and target one display")
   }
 }

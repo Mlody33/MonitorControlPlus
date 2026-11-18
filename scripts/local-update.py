@@ -4,10 +4,12 @@ import argparse
 from datetime import datetime, timezone
 import fcntl
 import json
+import hashlib
 import os
 from pathlib import Path
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -72,7 +74,84 @@ def source_snapshot():
     paths = [ROOT / 'MonitorControl.xcodeproj/project.pbxproj']
     for folder in ('MonitorControl', 'MonitorControlHelper', 'scripts'):
         paths.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
-    return {str(p): (p.stat().st_mtime_ns, p.stat().st_size) for p in paths}
+    snapshot = {}
+    for path in paths:
+        try:
+            stat = path.stat()
+            snapshot[str(path)] = (stat.st_mtime_ns, stat.st_size)
+        except FileNotFoundError:
+            pass  # Editors can atomically replace a file between discovery and stat.
+    return snapshot
+
+
+def source_revision():
+    return hashlib.sha256(json.dumps(source_snapshot(), sort_keys=True).encode()).hexdigest()
+
+
+def cleanup_updates(install_dir, keep=3):
+    """Prune only recognized Plus staging bundles, after a verified launch."""
+    stages = []
+    for stage in install_dir.glob('.MonitorControlPlus-update-*'):
+        if stage.is_symlink() or not stage.is_dir():
+            continue
+        children = list(stage.iterdir())
+        if not children or any(child.name not in (APP_NAME, 'previous.app', 'failed.app') for child in children):
+            continue
+        try:
+            if any(child.is_symlink() or app_info(child).get('CFBundleIdentifier') != BUNDLE_ID for child in children):
+                continue
+        except (OSError, plistlib.InvalidFileException):
+            continue
+        stages.append(stage)
+    stages.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    for stage in stages[keep:]:
+        shutil.rmtree(stage)
+
+
+def install(args, candidate, team):
+    destination = args.install_dir.expanduser().resolve() / APP_NAME
+    stage = candidate.parent
+    verify(candidate, team)
+    if destination.exists():
+        requirement_result = run('codesign', '-d', '-r-', destination, capture_output=True)
+        requirement = (requirement_result.stdout + requirement_result.stderr).decode()
+        designated = next((line.removeprefix('designated => ') for line in requirement.splitlines()
+                           if line.startswith('designated => ')), None)
+        if not designated:
+            raise RuntimeError('The installed app has no designated signing requirement.')
+        run('codesign', '--verify', '-R', '=' + designated, candidate)
+
+    helper = STATE / 'app-lifecycle'
+    run('xcrun', 'swiftc', ROOT / 'scripts/AppLifecycle.swift', '-o', helper)
+    run(helper, 'quit')
+    backups = STATE / 'preferences-backups'
+    backups.mkdir(exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    for domain in (BUNDLE_ID, 'app.monitorcontrol.MonitorControl'):
+        subprocess.run(['defaults', 'export', domain, str(backups / f'{stamp}-{domain}.plist')],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    previous = stage / 'previous.app'
+    try:
+        if destination.exists():
+            destination.rename(previous)
+        candidate.rename(destination)
+        verify(destination, team)
+        run('open', '-n', destination)
+        time.sleep(2)
+        run(helper, 'check', destination)
+    except Exception:
+        # Keep the failed candidate for diagnosis and restore the previous installation.
+        if previous.exists():
+            if destination.exists():
+                destination.rename(stage / 'failed.app')
+            previous.rename(destination)
+            subprocess.run(['open', '-n', str(destination)])
+        raise
+    try:
+        cleanup_updates(destination.parent)
+    except OSError as error:
+        print(f'Old update cleanup skipped: {error}', file=sys.stderr)
+    print(f'Updated and launched {destination}. Previous app retained at {previous if previous.exists() else "(first install)"}')
 
 
 def update(args, state):
@@ -80,6 +159,21 @@ def update(args, state):
     destination = args.install_dir.expanduser().resolve() / APP_NAME
     if destination.exists() and app_info(destination)['CFBundleIdentifier'] != BUNDLE_ID:
         raise RuntimeError(f'Refusing to replace an unrelated app at {destination}.')
+    revision = source_revision()
+    pending = state.get('pending', {})
+    candidate = Path(pending.get('candidate', ''))
+    if not args.build_only and pending.get('source') == revision and pending.get('destination') == str(destination) and candidate.is_dir():
+        # Accept only staging directories created by this updater beside this installation.
+        if candidate.name != APP_NAME or candidate.parent.parent != destination.parent or not candidate.parent.name.startswith('.MonitorControlPlus-update-'):
+            raise RuntimeError('Unexpected pending update path.')
+        try:
+            install(args, candidate, team)
+        finally:
+            if not candidate.exists():
+                state.pop('pending', None)
+                save_state(state)
+        return
+    state.pop('pending', None)
     installed_number = int(app_info(destination)['CFBundleVersion']) if destination.exists() else 0
     number = max(7152, installed_number, state.get('build', 0)) + 1
     state.update(identity=identity, team=team, build=number)
@@ -112,41 +206,14 @@ def update(args, state):
     candidate = stage / APP_NAME
     run('ditto', built, candidate)
     verify(candidate, team)
-    if destination.exists():
-        requirement_result = run('codesign', '-d', '-r-', destination, capture_output=True)
-        requirement = (requirement_result.stdout + requirement_result.stderr).decode()
-        designated = next((line.removeprefix('designated => ') for line in requirement.splitlines()
-                           if line.startswith('designated => ')), None)
-        if not designated:
-            raise RuntimeError('The installed app has no designated signing requirement.')
-        run('codesign', '--verify', '-R', '=' + designated, candidate)
-    helper = STATE / 'app-lifecycle'
-    run('xcrun', 'swiftc', ROOT / 'scripts/AppLifecycle.swift', '-o', helper)
-    run(helper, 'quit')
-    backups = STATE / 'preferences-backups'
-    backups.mkdir(exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    for domain in (BUNDLE_ID, 'app.monitorcontrol.MonitorControl'):
-        subprocess.run(['defaults', 'export', domain, str(backups / f'{stamp}-{domain}.plist')],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    previous = stage / 'previous.app'
+    state['pending'] = {'candidate': str(candidate), 'source': revision, 'destination': str(destination)}
+    save_state(state)
     try:
-        if destination.exists():
-            destination.rename(previous)
-        candidate.rename(destination)
-        verify(destination, team)
-        run('open', '-n', destination)
-        time.sleep(2)
-        run(helper, 'check', destination)
-    except Exception:
-        # Keep the failed candidate for diagnosis and restore the previous installation.
-        if previous.exists():
-            if destination.exists():
-                destination.rename(stage / 'failed.app')
-            previous.rename(destination)
-            subprocess.run(['open', '-n', str(destination)])
-        raise
-    print(f'Updated and launched {destination}. Previous app retained at {previous if previous.exists() else "(first install)"}')
+        install(args, candidate, team)
+    finally:
+        if not candidate.exists():
+            state.pop('pending', None)
+            save_state(state)
 
 
 def main():
@@ -164,18 +231,35 @@ def main():
             raise RuntimeError('Another local update process is already running.')
         state_file = STATE / 'state.json'
         state = json.loads(state_file.read_text()) if state_file.exists() else {}
-        snapshot = source_snapshot()
-        update(args, state)
-        while args.watch:
-            time.sleep(1)
+        watch_updates(args, state)
+
+
+def watch_updates(args, state):
+    snapshot = None
+    retry_at = None
+    retry_delay = 5
+    while True:
+        current = source_snapshot()
+        changed = current != snapshot
+        if changed and snapshot is not None:
+            time.sleep(0.5)
             current = source_snapshot()
-            if current != snapshot:
-                time.sleep(0.5)
-                snapshot = source_snapshot()
-                try:
-                    update(args, state)
-                except (RuntimeError, subprocess.CalledProcessError) as error:
-                    print(f'Update failed: {error}', file=sys.stderr, flush=True)
+        if changed or (retry_at is not None and time.monotonic() >= retry_at):
+            snapshot = current
+            try:
+                update(args, state)
+                retry_at = None
+                retry_delay = 5
+            except (RuntimeError, subprocess.CalledProcessError, OSError) as error:
+                if not args.watch:
+                    raise
+                print(f'Update failed: {error}; retrying in {retry_delay}s', file=sys.stderr, flush=True)
+                retry_at = time.monotonic() + retry_delay
+                retry_delay = min(60, retry_delay * 2)
+        if not args.watch:
+            return
+        time.sleep(1)
+
 
 
 if __name__ == '__main__':

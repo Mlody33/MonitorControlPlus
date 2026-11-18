@@ -26,7 +26,7 @@ class MenuHandler: NSMenu, NSMenuDelegate {
   func menuWillOpen(_: NSMenu) {
     self.updateMenuRelevantDisplay()
     app.keyboardShortcuts.disengage()
-    for slider in self.inputSourceSliders { slider.refresh(reloadCapabilities: true) }
+    for slider in self.inputSourceSliders { slider.refresh() }
     self.inputSourceTimer?.invalidate()
     let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
       self?.inputSourceSliders.forEach { $0.refresh() }

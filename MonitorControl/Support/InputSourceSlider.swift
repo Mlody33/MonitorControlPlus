@@ -150,7 +150,7 @@ final class InputSourceSlider: NSView {
 
   private func refreshPowerButton() {
     self.display.refreshPowerMode { [weak self] in
-      guard let self = self, !self.powering, !self.switching else { return }
+      guard let self = self, !self.powering, !self.switching, (self.slider.cell as? SourceCell)?.isTracking != true else { return }
       self.apply(self.snapshot)
     }
   }

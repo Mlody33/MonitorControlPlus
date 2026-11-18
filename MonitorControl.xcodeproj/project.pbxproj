@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1D000000000000000000012 /* DDCOperationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000011 /* DDCOperationContext.swift */; };
 		A1D000000000000000000010 /* OtherDisplay+Power.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000006 /* OtherDisplay+Power.swift */; };
 		A1D00000000000000000000F /* InputSourceSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000005 /* InputSourceSlider.swift */; };
 		A1D00000000000000000000E /* OtherDisplay+InputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D000000000000000000004 /* OtherDisplay+InputSource.swift */; };
@@ -80,6 +81,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1D000000000000000000011 /* DDCOperationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DDCOperationContext.swift; sourceTree = "<group>"; };
 		A1D000000000000000000006 /* OtherDisplay+Power.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OtherDisplay+Power.swift"; sourceTree = "<group>"; };
 		A1D000000000000000000005 /* InputSourceSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InputSourceSlider.swift"; sourceTree = "<group>"; };
 		A1D000000000000000000004 /* OtherDisplay+InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OtherDisplay+InputSource.swift"; sourceTree = "<group>"; };
@@ -290,6 +292,7 @@
 				F03A8DF11FFBAA6F0034DC27 /* OtherDisplay.swift */,
 				A1D000000000000000000004 /* OtherDisplay+InputSource.swift */,
 				A1D000000000000000000006 /* OtherDisplay+Power.swift */,
+				A1D000000000000000000011 /* DDCOperationContext.swift */,
 				A1D000000000000000000003 /* DDCInputSource.swift */,
 			);
 			path = Model;
@@ -655,6 +658,7 @@
 				A1D00000000000000000000F /* InputSourceSlider.swift in Sources */,
 				A1D00000000000000000000E /* OtherDisplay+InputSource.swift in Sources */,
 				A1D000000000000000000010 /* OtherDisplay+Power.swift in Sources */,
+				A1D000000000000000000012 /* DDCOperationContext.swift in Sources */,
 				A1D00000000000000000000D /* DDCInputSource.swift in Sources */,
 				A1D000000000000000000001 /* PreferencesMigration.swift in Sources */,
 				AA44E7052703790100E06865 /* KeyboardShortcuts+Extension.swift in Sources */,

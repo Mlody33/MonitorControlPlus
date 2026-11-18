@@ -133,6 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func displayReconfigured() {
+    DDCOperationRegistry.shared.invalidate()
     DisplayManager.shared.resetSwBrightnessForAllDisplays(noPrefSave: true)
     CGDisplayRestoreColorSyncSettings()
     self.reconfigureID += 1
@@ -197,6 +198,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func sleepNotification() {
+    DDCOperationRegistry.shared.invalidate()
     self.sleepID += 1
     os_log("Sleeping with sleep %{public}@", type: .info, String(self.sleepID))
     self.updateMediaKeyTap()

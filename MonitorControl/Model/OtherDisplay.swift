@@ -11,6 +11,7 @@ class OtherDisplay: Display {
   var cachedInputSourceCodes: [UInt16]?
   var inputSwitchPending = false
   var powerRequestPending = false
+  var powerRefreshPending = false
   var dpmsOffRequested = false
   var reportedPowerMode: UInt16?
   var isDiscouraged: Bool = false
